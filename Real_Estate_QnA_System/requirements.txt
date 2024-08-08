@@ -1,0 +1,16 @@
+Flask
+Werkzeug
+Flask-Cors
+langchain-groq
+langchain-core
+langchain
+python-dotenv
+PyMuPDF
+python-docx
+Pillow
+pandas
+langchain_google_genai
+langchain_community
+faiss-cpu
+openpyxl
+
