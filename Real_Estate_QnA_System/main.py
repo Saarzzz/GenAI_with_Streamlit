@@ -113,13 +113,13 @@ if prompt1:
     displayed_image = False
     for doc in response["context"]:
     # Check if the document source ends with '.png'
-    if doc.metadata["source"].endswith('.png') and not displayed_image:
-        # Ensure that the page_content is an image object
-        if isinstance(doc.page_content, Image.Image):
-            st.image(doc.page_content, caption=doc.metadata["source"])
-            displayed_image = True
-        else:
-            st.error(f"Error: The content for {doc.metadata['source']} is not a valid image.")
+        if doc.metadata["source"].endswith('.png') and not displayed_image:
+            # Ensure that the page_content is an image object
+            if isinstance(doc.page_content, Image.Image):
+                st.image(doc.page_content, caption=doc.metadata["source"])
+                displayed_image = True
+            else:
+                st.error(f"Error: The content for {doc.metadata['source']} is not a valid image.")
          
     # With a Streamlit expander
     with st.expander("Document Similarity Search"):
