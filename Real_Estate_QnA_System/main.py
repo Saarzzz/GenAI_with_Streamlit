@@ -21,7 +21,7 @@ load_dotenv()
 groq_api_key = os.getenv('GROQ_API_KEY')
 gemini_api_key = os.getenv('GEMINI_API_KEY')
 
-st.title("Tembusu Grand QnA System")
+st.title("Real Estate QnA System")
 
 llm = ChatGroq(groq_api_key=groq_api_key, model_name="Llama3-8b-8192", temperature=0.4)
 
