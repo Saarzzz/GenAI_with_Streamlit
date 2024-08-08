@@ -87,17 +87,18 @@ def load_documents(folder_path):
             print(filename)
     return documents
 
-def vector_embedding():
+def vector_embedding(files):
     if "vectors" not in st.session_state:
-        st.session_state.embeddings=GoogleGenerativeAIEmbeddings(model = "models/embedding-001")
-        folder_path = 'C:/Users/Admin/Downloads/Tembusu_Grand/'
-        st.session_state.docs = load_documents(folder_path)  # Document Loading
+        st.session_state.embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        st.session_state.docs = load_documents(files)  # Document Loading
         st.session_state.text_splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=100)  # Chunk Creation
         st.session_state.final_documents = st.session_state.text_splitter.split_documents(st.session_state.docs)  # Splitting
         st.session_state.vectors = FAISS.from_documents(st.session_state.final_documents, st.session_state.embeddings)  # Vector embeddings
 
-if st.button("Load the Embeddings"):
-    vector_embedding()
+uploaded_files = st.file_uploader("Upload your documents", type=['pdf', 'docx', 'xlsx'], accept_multiple_files=True)
+
+if st.button("Load the Embeddings") and uploaded_files:
+    vector_embedding(uploaded_files)
     st.write("Vector Store DB Is Ready")
 
 prompt1 = st.text_input("Enter Your Question:-")
