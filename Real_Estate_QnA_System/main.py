@@ -37,6 +37,7 @@ prompt = ChatPromptTemplate.from_template(
     1. Provide a brief description without using phrases like "Based on the provided context."
     2. Be as detailed as possible.
     3. Always use the <br> tag for line breaks instead of '\n' in the output.
+    4. When providing a link, use the <a href='link' target='_blank'>text</a> format for redirection.
     5. Do not use information other than the provided context.
     """
 )
