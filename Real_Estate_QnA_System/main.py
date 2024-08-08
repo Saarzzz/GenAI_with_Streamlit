@@ -42,27 +42,27 @@ prompt = ChatPromptTemplate.from_template(
     """
 )
 
-def read_pdf(file_path): #Reading the PDF Files
-    doc = fitz.open(file_path)
+def read_pdf(file):  # Reading the PDF Files
+    doc = fitz.open(stream=file.read(), filetype="pdf")
     text = ""
     for page_num in range(len(doc)):
         page = doc.load_page(page_num)
         text += page.get_text()
     return text
 
-def read_docx(file_path): #Reading the DOCX Files
-    doc = DocxDocument(file_path)
+def read_docx(file):  # Reading the DOCX Files
+    doc = DocxDocument(file)
     text = ""
     for para in doc.paragraphs:
         text += para.text
     return text
 
-def read_image(file_path): #Reading the Image Files
-    image = Image.open(file_path)
-    return file_path, os.path.basename(file_path) 
+def read_image(file):  # Reading the Image Files
+    image = Image.open(file)
+    return file.name, image
 
-def read_xlsx(file_path): #Reading the XLSX Files
-    df = pd.read_excel(file_path)
+def read_xlsx(file):  # Reading the XLSX Files
+    df = pd.read_excel(file)
     text = df.to_string(index=False)
     return text
 
@@ -78,10 +78,9 @@ def load_documents(files):
         elif file.name.endswith('.xlsx'):
             text = read_xlsx(file)
             documents.append(Document(page_content=text, metadata={"source": file.name}))
-        elif filename.endswith('.png'):
-            image_path, image_name = read_image(file_path)
-            documents.append(Document(page_content=image_path, metadata={"source": image_name}))
-            print(filename)
+        elif file.name.endswith('.png'):
+            image_path, image = read_image(file)
+            documents.append(Document(page_content=image_path, metadata={"source": file.name}))
     return documents
 
 def vector_embedding(files):
@@ -92,12 +91,13 @@ def vector_embedding(files):
         st.session_state.final_documents = st.session_state.text_splitter.split_documents(st.session_state.docs)  # Splitting
         st.session_state.vectors = FAISS.from_documents(st.session_state.final_documents, st.session_state.embeddings)  # Vector embeddings
 
-uploaded_files = st.file_uploader("Upload your documents", type=['pdf', 'docx', 'xlsx'], accept_multiple_files=True)
+# Streamlit UI
+uploaded_files = st.file_uploader("Upload your documents", type=['pdf', 'docx', 'xlsx', 'png'], accept_multiple_files=True)
 
 if st.button("Load the Embeddings") and uploaded_files:
     vector_embedding(uploaded_files)
     st.write("Vector Store DB Is Ready")
-
+    
 prompt1 = st.text_input("Enter Your Question:-")
 
 import time
