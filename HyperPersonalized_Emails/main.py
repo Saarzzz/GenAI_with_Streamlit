@@ -170,7 +170,7 @@ if uploaded_file:
         # Collect user details in the third column
         with col2:
             st.subheader("User Details")
-            st.session_state['user_details'] = st.text_area("Enter User Details (Name, Designation, Company, Service Offering, Reason for Outreach)", st.session_state['user_details'], height=None)
+            st.session_state['user_details'] = st.text_area("Enter Your Details (Name, Designation, Company, Service Offering, Reason for Outreach)", st.session_state['user_details'], height=None)
 
         if st.button("Generate Emails"):
             if all([st.session_state[f'Input_E{i}'] for i in range(1, num_emails + 1)]) and st.session_state['user_details']:
