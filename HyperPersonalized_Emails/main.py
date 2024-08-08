@@ -20,6 +20,18 @@ client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 st.title(":blue[Hyper Personalized Email Generator ]:rocket:")
 
 # Sidebar for file upload
+sample_csv = """
+first_name,last_name,headline,current_company,location_name,summary,current_company_position,organization_description_1,skills
+John,Doe,Software Engineer,Tech Corp,San Francisco,"Experienced in AI and ML",Lead Engineer,"Leading tech company","Python, Machine Learning"
+Jane,Smith,Data Scientist,Data Inc,New York,"Expert in data analysis",Senior Data Scientist,"Data-driven solutions","R, Data Analysis"
+"""
+
+st.sidebar.download_button(
+    label="Download Sample CSV",
+    data=sample_csv,
+    file_name='sample.csv',
+    mime='text/csv'
+)
 uploaded_file = st.sidebar.file_uploader('Upload an Excel or CSV file', type=['xlsx', 'csv'])
 
 if uploaded_file:
