@@ -161,10 +161,10 @@ if uploaded_file:
 
         # Collect inputs in the second column (adjacent to the sidebar)
         with col0:
-            st.subheader("VF Market Plan Inputs")
+            st.subheader("Market Plan and Templates Inputs")
             for i in range(1, num_emails + 1):
                 with st.expander(f"Email {i}"):
-                    st.session_state[f'Input_E{i}'] = st.text_area(f"Enter VF Market Plan for Email {i}", st.session_state[f'Input_E{i}'], height=None)
+                    st.session_state[f'Input_E{i}'] = st.text_area(f"Enter Market Plan for Email {i}", st.session_state[f'Input_E{i}'], height=None)
                     st.session_state[f'Format_E{i}'] = st.text_area(f"Enter Format for Email {i}", st.session_state[f'Format_E{i}'], height=None)
 
         # Collect user details in the third column
