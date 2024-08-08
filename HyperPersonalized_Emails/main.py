@@ -1,176 +1,260 @@
 import os
-import time
-from flask import Flask, request, jsonify, render_template, redirect, url_for, send_from_directory
-from werkzeug.utils import secure_filename
-from flask_cors import CORS
-from langchain_groq import ChatGroq
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.prompts import ChatPromptTemplate
-from langchain.chains import create_retrieval_chain
-from langchain_community.vectorstores import FAISS
+import re
+import json
+import streamlit as st
+import pandas as pd
+from io import BytesIO
+from anthropic import Anthropic
 from dotenv import load_dotenv
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
-import fitz  # PyMuPDF
-from docx import Document as DocxDocument
-from PIL import Image
-from langchain_core.documents import Document  # Ensure using the correct Document class
-import pandas as pd  # Import pandas for reading Excel files
+from pydantic import BaseModel, Field, ValidationError, create_model
+from langchain_core.output_parsers import JsonOutputParser
+from time import sleep
 
-# Loading environment variables
+# Set the page configuration to wide mode
+st.set_page_config(layout="wide",page_icon=":rocket:",page_title="Excel/CSV Column Manager and Hyper Personalized Email Generator")
+
 load_dotenv()
 
-# Loading the GROQ and Gemini API keys
-groq_api_key = os.getenv('GROQ_API_KEY')
-gemini_api_key = os.getenv('GEMINI_API_KEY')
+client = Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
-# Initialize Flask app
-app = Flask(__name__)
-CORS(app)
-app.config['UPLOAD_FOLDER'] = 'uploads'
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
+st.title(":blue[Hyper Personalized Email Generator ]:rocket:")
 
-# Initialize LLM and prompt template
-llm = ChatGroq(groq_api_key=groq_api_key, model_name="Llama3-8b-8192", temperature=0.1)
-prompt = ChatPromptTemplate.from_template(
-    """
-    Answer the questions based on the provided context only.
-    Please provide the most accurate response based on the question
-    <context>
-    {context}
-    <context>
-    Questions: {input}
-    Always follow these guidelines:
-    1. Provide a brief description without using phrases like "Based on the provided context."
-    2. Be as detailed as possible.
-    3. Always use the <br> tag for line breaks instead of '\n' in the output.
-    4. When providing a link, use the <a href='link' target='_blank'> tag for redirection.
-    5. Do not use information other than the provided context.
-    """
-)
+# Sidebar for file upload
+uploaded_file = st.sidebar.file_uploader('Upload an Excel or CSV file', type=['xlsx', 'csv'])
 
-# Helper functions to read different file types
-def read_pdf(file_path):
-    doc = fitz.open(file_path)
-    text = ""
-    for page_num in range(len(doc)):
-        page = doc.load_page(page_num)
-        text += page.get_text()
-    return text
+if uploaded_file:
+    # Determine the file type
+    file_type = uploaded_file.name.split('.')[-1]
 
-def read_docx(file_path):
-    doc = DocxDocument(file_path)
-    text = ""
-    for para in doc.paragraphs:
-        text += para.text
-    return text
+    # Radio buttons for selecting the operation
+    operation = st.sidebar.radio("Select the operation:", ("Generate Hyperpersonalized Emails", "Delete Columns from Excel/CSV Files"))
 
-def read_image(file_path):
-    return file_path.replace("\\", "/"), os.path.basename(file_path)  # Return the file path and file name
+    if operation == "Delete Columns from Excel/CSV Files":
+        if file_type == 'xlsx':
+            # Read the uploaded Excel file
+            excel_data = pd.ExcelFile(uploaded_file)
 
-def read_xlsx(file_path):
-    df = pd.read_excel(file_path)
-    rows = []
-    for index, row in df.iterrows():
-        row_str = f"{index + 1}." + " ".join([f"{col}={row[col]}," for col in df.columns])
-        rows.append(row_str)
-    text = "\n".join(rows)
-    return text
+            # List all the sheet names
+            sheet_names = excel_data.sheet_names
 
-def load_documents(folder_path):
-    documents = []
-    for filename in os.listdir(folder_path):
-        file_path = os.path.join(folder_path, filename)
-        if filename.endswith('.pdf'):
-            text = read_pdf(file_path)
-            documents.append(Document(page_content=text, metadata={"source": filename}))
-        elif filename.endswith('.docx'):
-            text = read_docx(file_path)
-            documents.append(Document(page_content=text, metadata={"source": filename}))
-        elif filename.endswith('.xlsx'):
-            text = read_xlsx(file_path)
-            documents.append(Document(page_content=text, metadata={"source": filename}))
-        elif filename.endswith('.png'):
-            image_path, image_name = read_image(file_path)
-            documents.append(Document(page_content=image_path, metadata={"source": image_name}))
-    return documents
+            # Select sheet
+            selected_sheet = st.selectbox('Select a sheet', sheet_names)
+            if selected_sheet:
+                df = pd.read_excel(uploaded_file, sheet_name=selected_sheet)
+                columns = df.columns.tolist()
+                
+                # Multiselect for columns to delete
+                columns_to_delete = st.multiselect('Select columns to delete', columns)
+                
+                if st.button('Delete Selected Columns'):
+                    if columns_to_delete:
+                        df.drop(columns=columns_to_delete, inplace=True)
+                        st.write('Updated DataFrame:', df)
+                        
+                        # Convert the updated DataFrame to a downloadable Excel file
+                        output = BytesIO()
+                        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                            df.to_excel(writer, index=False, sheet_name=selected_sheet)
+                        output.seek(0)
+                        
+                        # Provide download link
+                        st.download_button(label='Download Updated Excel', data=output, file_name='updated_excel_file.xlsx', mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                    else:
+                        st.warning('No columns selected for deletion')
 
-def vector_embedding():
-    start_time = time.time()
-    app.config["embeddings"] = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    folder_path = app.config['UPLOAD_FOLDER']
-    app.config["docs"] = load_documents(folder_path)  # Document Loading
-    print(f"Document loading time: {time.time() - start_time:.2f} seconds")
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=2000, chunk_overlap=100)  # Chunk Creation
-    app.config["final_documents"] = text_splitter.split_documents(app.config["docs"])  # Splitting
-    print(f"Document splitting time: {time.time() - start_time:.2f} seconds")
-    app.config["vectors"] = FAISS.from_documents(app.config["final_documents"], app.config["embeddings"])  # Vector embeddings
-    print(f"Embedding generation time: {time.time() - start_time:.2f} seconds")
-    # Debug: Print the content of the documents being embedded
-    #for doc in app.config["final_documents"]:
-        #print("Embedding document:", doc.page_content)
-    print(f"Total embedding task time: {time.time() - start_time:.2f} seconds")
+        elif file_type == 'csv':
+            # Read the uploaded CSV file
+            df = pd.read_csv(uploaded_file)
+            columns = df.columns.tolist()
 
-# Route to render the main page
-@app.route('/')
-def index():
-    return render_template('index.html')
+            # Multiselect for columns to delete
+            columns_to_delete = st.multiselect('Select columns to delete', columns)
+            
+            if st.button('Delete Selected Columns'):
+                if columns_to_delete:
+                    df.drop(columns=columns_to_delete, inplace=True)
+                    st.write('Updated DataFrame:', df)
+                    
+                    # Convert the updated DataFrame to a downloadable CSV file
+                    output = BytesIO()
+                    df.to_csv(output, index=False)
+                    output.seek(0)
+                    
+                    # Provide download link
+                    st.download_button(label='Download Updated CSV', data=output, file_name='updated_csv_file.csv', mime='text/csv')
+                else:
+                    st.warning('No columns selected for deletion')
 
-# Route to upload documents
-@app.route('/upload_documents', methods=['POST'])
-def upload_documents():
-    if 'files[]' not in request.files:
-        return redirect(request.url)
-    files = request.files.getlist('files[]')
-    for file in files:
-        if file:
-            filename = secure_filename(file.filename)
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            try:
-                file.save(file_path)
-                print(f"File saved to {file_path}")
-            except Exception as e:
-                print(f"Error saving file {filename}: {e}")
-                return jsonify({"error": f"Failed to save file {filename}: {e}"}), 500
-    return jsonify({"status": "Documents uploaded successfully"})
+    elif operation == "Generate Hyperpersonalized Emails":
+        # Hyper Personalized Email Generator Section
+        st.subheader("Hyper Personalized Email Generator")
 
-# Route to process documents
-@app.route('/process_documents', methods=['POST'])
-def process_documents():
-    vector_embedding()
-    return jsonify({"status": "Documents processed successfully"})
+        # Input field for the number of emails
+        num_emails = st.number_input("Number of Emails", min_value=1, max_value=10, value=5)
 
-# Route to serve uploaded files
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+        try:
+            if file_type == 'csv':
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file)
 
-# Route to process queries
-@app.route('/query', methods=['POST'])
-def query():
-    data = request.json
-    input_query = data.get('input')
-    if not input_query:
-        return jsonify({"error": "No input query provided"}), 400
+            if df.empty:
+                st.write("The uploaded file is empty. Please upload a file with data.")
+            else:
+                # Add email and subject columns if they don't exist
+                email_columns = [f"Email {i+1}" for i in range(num_emails)]
+                subject_columns = [f"Subject {i+1}" for i in range(num_emails)]
+                for col in email_columns + subject_columns:
+                    if col not in df.columns:
+                        df[col] = ""
+                st.session_state['df'] = df  # Save the DataFrame to session state
 
-    document_chain = create_stuff_documents_chain(llm, prompt)
-    retriever = app.config["vectors"].as_retriever()
-    retrieval_chain = create_retrieval_chain(retriever, document_chain)
-    start = time.process_time()
-    response = retrieval_chain.invoke({'input': input_query})
-    print("Response time:", time.process_time() - start)
-    #print(response['answer'])
-    result = []
-    displayed_image = False
-    for doc in response["context"]:
-        if doc.metadata["source"].endswith('.png') and not displayed_image:
-            result.append({"type": "image", "content": doc.page_content, "caption": doc.metadata["source"]})
-            displayed_image = True
-    #print(result)
-    return jsonify({"answer": response['answer'], "result" : result })
+        except pd.errors.EmptyDataError:
+            st.error("The uploaded file is empty or not properly formatted. Please upload a valid file.")
 
-# Run the Flask app
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+        def preprocess_json_string(json_string):
+            # Remove invalid control characters
+            json_string = re.sub(r'[\x00-\x1f\x7f]', '', json_string)
+            # Escape backslashes
+            json_string = json_string.replace('\\', '\\\\')
+            return json_string
 
+        email_fields = {f'email{i+1}': (str, Field(description=f"Email {i+1}")) for i in range(num_emails)}
+        Email = create_model('Email', **email_fields)
+
+        class EmailResponse(BaseModel):
+            emails: list[Email]
+            subjects: list[str]
+
+        parser = JsonOutputParser(pydantic_object=EmailResponse)
+        format_instructions = parser.get_format_instructions()
+
+        # Initialize session state for inputs if not already present
+        for i in range(1, num_emails + 1):
+            if f'Input_E{i}' not in st.session_state:
+                st.session_state[f'Input_E{i}'] = ""
+            if f'Format_E{i}' not in st.session_state:
+                st.session_state[f'Format_E{i}'] = ""
+            if 'user_details' not in st.session_state:
+                st.session_state['user_details'] = (
+                    "Name: \n"
+                    "Designation: \n"
+                    "Company: \n"
+                    "Service Offering: \n"
+                    "Reason for Outreach: \n"
+                )
+
+        # Create two columns for layout
+        col0, col2 = st.columns([3, 3], gap="large")
+
+        # Collect inputs in the second column (adjacent to the sidebar)
+        with col0:
+            st.subheader("VF Market Plan Inputs")
+            for i in range(1, num_emails + 1):
+                with st.expander(f"Email {i}"):
+                    st.session_state[f'Input_E{i}'] = st.text_area(f"Enter VF Market Plan for Email {i}", st.session_state[f'Input_E{i}'], height=None)
+                    st.session_state[f'Format_E{i}'] = st.text_area(f"Enter Format for Email {i}", st.session_state[f'Format_E{i}'], height=None)
+
+        # Collect user details in the third column
+        with col2:
+            st.subheader("User Details")
+            st.session_state['user_details'] = st.text_area("Enter User Details (Name, Designation, Company, Service Offering, Reason for Outreach)", st.session_state['user_details'], height=None)
+
+        if st.button("Generate Emails"):
+            if all([st.session_state[f'Input_E{i}'] for i in range(1, num_emails + 1)]) and st.session_state['user_details']:
+                progress_bar = st.progress(0)
+                total_rows = len(st.session_state['df'])
+
+                try:
+                    for index, row in st.session_state['df'].iterrows():
+                        prompt = f"""
+                        You are tasked with generating {num_emails} hyper-personalized cold email outreach messages based on a LinkedIn profile and other provided information. Follow these instructions carefully to create effective, tailored emails.
+
+                        First, you will be provided with the following information:
+
+                        Name: {row['first_name']} {row['last_name']}
+                        Title: {row['headline']}
+                        Company: {row['current_company']}
+                        Location: {row['location_name']}
+                        Summary: {row['summary']}
+                        Designation: {row['current_company_position']}
+                        Company: {row['organization_description_1']}
+                        Skills: {row['skills']}
+
+                        {st.session_state['user_details']}
+
+                        Use the Mini Brief Market Plan given for Each Email.
+                        """
+
+                        for i in range(1, num_emails + 1):
+                            prompt += f"""
+                            For Email {i}:
+                            {st.session_state[f'Input_E{i}']}
+                            Format: {st.session_state[f'Format_E{i}']}
+                            """
+
+                        prompt += f"""
+                        To generate each email, always use this formula:
+                        1. Find a unique opening line tied to the prospect from the given information.
+                        2. Introduce your company's relevant specialty.
+                        3. Show understanding of prospect's world.
+                        4. Explain 3 key benefits of your offering from the case studies.
+                        5. Share a bit about your process and speed.
+                        6. Provide a customer example if possible.
+                        7. End with a clear meeting request.
+                        8. Close with full signature.
+
+                        Additional guidelines:
+                        - Each email should be approximately 200 words long.
+                        - Ensure each email is unique and tailored to the specific Mini Brief Market Plan provided for that email.
+                        - Use the prospect's information to personalize the content and make it relevant to their role and company.
+
+                        JSON Format for the output will be:-
+                        {format_instructions}.
+                        Ensure that your output contains only the JSON structure with the generated emails. Do not include any additional text or explanations outside of the JSON format.
+                        """
+
+                        response = client.messages.create(
+                            model="claude-3-haiku-20240307",
+                            max_tokens=3096,
+                            temperature=0.4,
+                            messages=[{"role": "user", "content": prompt}]
+                        )
+
+                        response_text = response.content[0].text
+                        emails_json = preprocess_json_string(response_text)
+
+                        try:
+                            emails_json = json.loads(emails_json)
+                            for email_dict in emails_json['emails']:
+                                for key, value in email_dict.items():
+                                    if key.startswith('email') and value:
+                                        email_index = int(key.replace('email', '')) - 1
+                                        st.session_state['df'].at[index, f"Email {email_index + 1}"] = value
+                            for i, subject in enumerate(emails_json.get('subjects', [])):
+                                st.session_state['df'].at[index, f"Subject {i + 1}"] = subject
+                        except (json.JSONDecodeError, ValidationError) as e:
+                            print(f"Error parsing JSON or validation error for row {index}: {e}")
+                            st.error(f"Error parsing JSON or validation error for row {index}: {e}")
+                            continue  # Skip to the next row if there's an error
+
+                        progress_bar.progress((index + 1) / total_rows)
+                        sleep(0.1)  # Simulate a delay for demonstration purposes
+
+                    st.write("Emails generated successfully!")
+                except Exception as e:
+                    st.error(f"An error occurred: {e}")
+
+                st.dataframe(st.session_state['df'])
+
+                csv = st.session_state['df'].to_csv(index=False)
+                st.download_button(
+                    label="Download CSV",
+                    data=csv,
+                    file_name='output.csv',
+                    mime='text/csv'
+                )
+            else:
+                st.error("Please fill in all the input fields.")
+else:
+    st.write("Please upload a file to get started.")
