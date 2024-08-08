@@ -66,21 +66,18 @@ def read_xlsx(file_path): #Reading the XLSX Files
     text = df.to_string(index=False)
     return text
 
-#Loading the Files 
-def load_documents(folder_path):
+def load_documents(files):
     documents = []
-    images = []
-    for filename in os.listdir(folder_path):
-        file_path = os.path.join(folder_path, filename)
-        if filename.endswith('.pdf'):
-            text = read_pdf(file_path)
-            documents.append(Document(page_content=text, metadata={"source": filename}))
-        elif filename.endswith('.docx'):
-            text = read_docx(file_path)
-            documents.append(Document(page_content=text, metadata={"source": filename}))
-        elif filename.endswith('.xlsx'):
-            text = read_xlsx(file_path)
-            documents.append(Document(page_content=text, metadata={"source": filename}))
+    for file in files:
+        if file.name.endswith('.pdf'):
+            text = read_pdf(file)
+            documents.append(Document(page_content=text, metadata={"source": file.name}))
+        elif file.name.endswith('.docx'):
+            text = read_docx(file)
+            documents.append(Document(page_content=text, metadata={"source": file.name}))
+        elif file.name.endswith('.xlsx'):
+            text = read_xlsx(file)
+            documents.append(Document(page_content=text, metadata={"source": file.name}))
         elif filename.endswith('.png'):
             image_path, image_name = read_image(file_path)
             documents.append(Document(page_content=image_path, metadata={"source": image_name}))
