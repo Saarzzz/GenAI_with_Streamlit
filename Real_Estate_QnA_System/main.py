@@ -109,7 +109,7 @@ if prompt1:
     start = time.process_time()
     response = retrieval_chain.invoke({'input': prompt1})
     print("Response time:", time.process_time() - start)
-    st.write(response['answer'])
+    st.markdown(st.write(response['answer']), unsafe_allow_html=True)
     displayed_image = False
     for doc in response["context"]:
     # Check if the document source ends with '.png'
