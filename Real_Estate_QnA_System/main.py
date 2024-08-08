@@ -59,8 +59,8 @@ def read_docx(file):  # Reading the DOCX Files
 
 def read_image(file):  # Reading the Image Files
     image = Image.open(file)
-    return file.name, image
-
+    return image
+    
 def read_xlsx(file):  # Reading the XLSX Files
     df = pd.read_excel(file)
     text = df.to_string(index=False)
