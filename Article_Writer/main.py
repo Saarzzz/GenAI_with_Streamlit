@@ -81,8 +81,7 @@ if st.button("Generate Article on the given topic"):
                             content = document.page_content
                             article_content += '\n\n\n\n' + content
 
-            if article_content:
-                with st.spinner("Analyzing and creating structure..."):
+            with st.spinner("Analyzing and creating structure..."):
                     prompt_template = """Analyze the following articles separated by '/n/n/n/n' and create a best structure out of them for a comprehensive article:
                     {text}
                     """
