@@ -73,7 +73,7 @@ if st.button("Generate Article on the given topic"):
                     article_content = ""
 
                     # Fetch up to 10 articles
-                    for i, item in zip(range(10), result_dict['news']):
+                    for i, item in zip(range(5), result_dict['news']):
                         loader = UnstructuredURLLoader(urls=[item['link']], ssl_verify=False)
                         data = loader.load()
                         if data:
